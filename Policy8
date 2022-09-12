@@ -1,0 +1,60 @@
+monitor ecg_eight; // Policy 8 for a PR greater than 0.2s (first degree AV Block)
+interface of ecg_eight {
+	uint32_t ECG_event; // 0 = nothing, 1 = QRS_start, 2 = Q, 3 = R, 4 = S, 5 = QRS_end, 6 = T, 7 = P
+}
+
+policy one of ecg_eight{
+	internals {
+		dtimer_t t;
+        fs = 360;
+		// MAX_SAMPLE_WIDTH = 60 for 500 Hz signal, 48 for a 400 Hz signal
+        MAX_SAMPLE_WIDTH  = 0.2*fs;
+		//constant uint8_t MAX_SAMPLE_WIDTH := 43; //60; // will change depending on sampling frequency
+	}
+	
+	states {
+		
+		l0 accepting{
+
+			//P detected
+			->l1 on ECG_event=7: t:=0;
+
+			//No P detected
+			->l0 on ECG_event!=7;
+		}
+		
+		l1 accepting{
+
+			//PR greater than 0.2s
+			->l2 on ECG_event=3 and t > MAX_SAMPLE_WIDTH: t:=0;
+
+			//PR less than 0.2s
+			->l0 on ECG_event=3 and t <= MAX_SAMPLE_WIDTH;
+
+			//No R detected
+			->l1 on ECG_event!=3;
+		}
+		
+		l2 rejecting{
+
+			//P detected
+			->l3 on ECG_event=7: t:=0;
+
+            //No P detected
+			->l2 on ECG_event!=7;
+		}
+
+        l3 rejecting{
+
+			//PR greater than 0.2s
+			->l2 on ECG_event=3 and t > MAX_SAMPLE_WIDTH;
+
+			//PR less than 0.2s
+			->l0 on ECG_event=3 and t <= MAX_SAMPLE_WIDTH;
+
+            //No R detected
+			->l3 on ECG_event!=3;
+
+		}
+	}
+}
