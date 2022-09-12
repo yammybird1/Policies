@@ -1,0 +1,47 @@
+monitor ecg_ten; // Policy 10 for consistent PR interval and P block
+interface of ecg_ten {
+	uint32_t ECG_event; // 0 = nothing, 1 = QRS_start, 2 = Q, 3 = R, 4 = S, 5 = QRS_end, 6 = T, 7 = P
+}
+
+policy one of ecg_ten{
+	internals {
+		dtimer_t t;
+        fs = 360;
+		// MAX_SAMPLE_WIDTH = 60 for 500 Hz signal, 48 for a 400 Hz signal
+        float MAX_SAMPLE_WIDTH  = 0.2*fs;
+		//constant uint8_t MAX_SAMPLE_WIDTH := 43; //60; // will change depending on sampling frequency
+	}
+	
+	states {
+		
+		l0 accepting{
+
+			//P detected
+			->l1 on ECG_event=7: t:=0;
+
+			//No P detected
+			->l0 on ECG_event!=7;
+		}
+		
+		l1 accepting{
+
+			//PR less than 0.2s
+			->l0 on ECG_event=3 and t <= MAX_SAMPLE_WIDTH;
+      
+			//P detected
+			->l2 on ECG_event=7: t:=0;
+
+			//No R or P detected
+			->l1 on ECG_event!=3 or ECG_event!=7;
+		}
+		
+		l2 rejecting{
+
+			//R detected
+			->l0 on ECG_event=3 and t <= MAX_SAMPLE_WIDTH;;
+
+            //No R detected
+			->l2 on ECG_event!=3;
+		}
+	}
+}
