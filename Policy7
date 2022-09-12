@@ -1,0 +1,44 @@
+monitor ecg_seven; // Policy 7 for heartrate less than 60bpm
+interface of ecg_seven {
+	uint32_t ECG_event; // 0 = nothing, 1 = QRS_start, 2 = Q, 3 = R, 4 = S, 5 = QRS_end, 6 = T, 7 = P
+}
+
+policy one of ecg_seven{
+	internals {
+		dtimer_t t;
+		// MAX_SAMPLE_WIDTH = 60 for 500 Hz signal, 48 for a 400 Hz signal
+		//constant uint8_t MAX_SAMPLE_WIDTH := 43; //60; // will change depending on sampling frequency
+	}
+	
+	states {
+		
+		l0 accepting{
+
+			//R detected
+			->l1 on ECG_event=2: t:=0;
+
+			//No R detected
+			->l0 on ECG_event!=2;
+		}
+		
+		l1 accepting{
+
+			//heartrate less than 60bpm
+			->l2 on ECG_event=2 and t >= 1000: t:=0;
+
+			//heartrate greater than 60bpm
+			->l1 on ECG_event=2 and t < 1000: t:=0;
+
+		}
+		
+		l2 rejecting{
+
+			//heartrate greater than 60bpm
+			->l2 on ECG_event=2 and t >= 1000: t:=0;
+
+			//No R detected
+			->l1 on ECG_event=2 and t < 1000: t:=0;
+
+		}
+	}
+}
